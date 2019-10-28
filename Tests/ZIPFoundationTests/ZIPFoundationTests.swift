@@ -325,6 +325,10 @@ extension ZIPFoundationTests {
             ("testUnzipItemWithPreferredEncoding", testUnzipItemWithPreferredEncoding),
             ("testUnzipItemErrorConditions", testUnzipItemErrorConditions),
             ("testZipItem", testZipItem),
+            ("testReadOnlyFile", testReadOnlyFile),
+            ("testWriteOnlyFile", testWriteOnlyFile),
+            ("testReadWriteFile", testReadWriteFile),
+            ("testAppendFile", testAppendFile),
             ("testLinuxTestSuiteIncludesAllTests", testLinuxTestSuiteIncludesAllTests)
         ] + darwinOnlyTests + inMemoryTests
     }
