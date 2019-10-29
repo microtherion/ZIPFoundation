@@ -195,17 +195,18 @@ class ZIPFoundationTests: XCTestCase {
         }
     }
 
-    @available(macOS 10.13, iOS 11.0, tvOS 11.0, watchOS 4.0, *)
-    func withMemoryArchive(for testFunction: String, body: (Archive) -> Void) {
+    func memoryArchive(for testFunction: String, mode: Archive.AccessMode,
+                       preferredEncoding: String.Encoding? = nil) -> Archive {
         var sourceArchiveURL = ZIPFoundationTests.resourceDirectoryURL
         sourceArchiveURL.appendPathComponent(testFunction.replacingOccurrences(of: "()", with: ""))
         sourceArchiveURL.appendPathExtension("zip")
         do {
-            let data    = try Data(contentsOf: sourceArchiveURL)
-            let length  = data.count
-            data.withUnsafeBytes { ptr in
-                body(Archive(readData:ptr, length:length)!)
+            let data    = mode == .create ? Data() : try Data(contentsOf: sourceArchiveURL)
+            guard let archive = Archive(data: data, accessMode: mode,
+                                        preferredEncoding: preferredEncoding) else {
+                throw Archive.ArchiveError.unreadableArchive
             }
+            return archive
         } catch {
             XCTFail("Failed to open memory archive for '\(sourceArchiveURL.lastPathComponent)'")
             type(of: self).tearDown()
@@ -334,16 +335,12 @@ extension ZIPFoundationTests {
     }
 
     static var inMemoryTests: [(String, (ZIPFoundationTests) -> () throws -> Void)] {
-        if #available(macOS 10.13, iOS 11.0, tvOS 11.0, watchOS 4.0, *) {
-            return [
-                ("testCreateArchiveAddUncompressedEntryToMemory", testCreateArchiveAddUncompressedEntryToMemory),
-                ("testCreateArchiveAddCompressedEntryToMemory", testCreateArchiveAddCompressedEntryToMemory),
-                ("testExtractCompressedFolderEntriesFromMemory", testExtractCompressedFolderEntriesFromMemory),
-                ("testExtractUncompressedFolderEntriesFromMemory", testExtractUncompressedFolderEntriesFromMemory)
-            ]
-        } else {
-            return []
-        }
+        return [
+            ("testCreateArchiveAddUncompressedEntryToMemory", testCreateArchiveAddUncompressedEntryToMemory),
+            ("testCreateArchiveAddCompressedEntryToMemory", testCreateArchiveAddCompressedEntryToMemory),
+            ("testExtractCompressedFolderEntriesFromMemory", testExtractCompressedFolderEntriesFromMemory),
+            ("testExtractUncompressedFolderEntriesFromMemory", testExtractUncompressedFolderEntriesFromMemory)
+        ]
     }
 
     static var darwinOnlyTests: [(String, (ZIPFoundationTests) -> () throws -> Void)] {

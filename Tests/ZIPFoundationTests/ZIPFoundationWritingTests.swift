@@ -25,14 +25,8 @@ extension ZIPFoundationTests {
         XCTAssert(archive.checkIntegrity())
     }
 
-    @available(macOS 10.13, iOS 11.0, tvOS 11.0, watchOS 4.0, *)
     func testCreateArchiveAddUncompressedEntryToMemory() {
-        var bytes  : UnsafeMutablePointer<Int8>?
-        var length = 0
-        guard let archive = Archive(writeData:&bytes, length:&length) else {
-            XCTFail("Failed to create in-memory archive for writing")
-            return
-        }
+        let archive = self.memoryArchive(for: #function, mode: .create)
         let assetURL = self.resourceURL(for: #function, pathExtension: "png")
         do {
             let relativePath = assetURL.lastPathComponent
@@ -41,18 +35,7 @@ extension ZIPFoundationTests {
         } catch {
             XCTFail("Failed to add entry to uncompressed folder archive with error : \(error)")
         }
-        guard bytes != nil else {
-            XCTFail("No data written")
-            return
-        }
-        var data = Data(bytesNoCopy: bytes!, count: length, deallocator: Data.Deallocator.free)
-        data.withUnsafeMutableBytes { (ptr: UnsafeMutablePointer<UInt8>) in
-            if let tempArchive = Archive(readData: ptr, length: length) {
-                XCTAssert(tempArchive.checkIntegrity())
-            } else {
-                XCTFail("Failed to copy archive for reading")
-            }
-        }
+        XCTAssert(archive.checkIntegrity())
     }
 
     func testCreateArchiveAddCompressedEntry() {
@@ -70,33 +53,19 @@ extension ZIPFoundationTests {
         XCTAssert(archive.checkIntegrity())
     }
 
-    @available(macOS 10.13, iOS 11.0, tvOS 11.0, watchOS 4.0, *)
     func testCreateArchiveAddCompressedEntryToMemory() {
-        var data : Data
+        let archive = self.memoryArchive(for: #function, mode: .create)
         let assetURL = self.resourceURL(for: #function, pathExtension: "png")
         do {
-            data = try Archive.dataWithArchive { archive in
-                do {
-                    let relativePath = assetURL.lastPathComponent
-                    let baseURL = assetURL.deletingLastPathComponent()
-                    try archive.addEntry(with: relativePath, relativeTo: baseURL, compressionMethod: .deflate)
-                } catch {
-                    XCTFail("Failed to add entry to compressed folder archive with error : \(error)")
-                }
-            }
+            let relativePath = assetURL.lastPathComponent
+            let baseURL = assetURL.deletingLastPathComponent()
+            try archive.addEntry(with: relativePath, relativeTo: baseURL, compressionMethod: .deflate)
         } catch {
-            XCTFail("Failed to create writable memory archive")
-            return
+            XCTFail("Failed to add entry to compressed folder archive with error : \(error)")
         }
-        do {
-            try Archive.extract(data: data) { archive in
-                let entry = archive[assetURL.lastPathComponent]
-                XCTAssertNotNil(entry)
-                XCTAssert(archive.checkIntegrity())
-            }
-        } catch {
-            XCTFail("Failed to create memory archive for reading")
-        }
+        let entry = archive[assetURL.lastPathComponent]
+        XCTAssertNotNil(entry)
+        XCTAssert(archive.checkIntegrity())
     }
 
     func testCreateArchiveAddDirectory() {

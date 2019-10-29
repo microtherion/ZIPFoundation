@@ -175,12 +175,38 @@ public final class Archive: Sequence {
         setvbuf(self.archiveFile, nil, _IOFBF, Int(defaultPOSIXBufferSize))
     }
 
-    @available(macOS 10.13, iOS 11.0, tvOS 11.0, watchOS 4.0, *)
-    public init?(readData: UnsafeRawPointer, length: Int) {
-        self.url            = URL(string: "memory:")!
-        self.accessMode     = .read
-        // In "rb" mode, fmemopen is in fact non-mutating
-        self.archiveFile    = fmemopen(UnsafeMutableRawPointer(mutating: readData), length, "rb")
+    var memoryFile : MemoryFile?
+    public init?(data: Data = Data(), accessMode mode: AccessMode, preferredEncoding: String.Encoding? = nil) {
+        self.url = URL(string: "memory:")!
+        self.accessMode = mode
+        self.preferredEncoding = preferredEncoding
+        let posixMode : String
+        switch mode {
+        case .read:
+            posixMode = "rb"
+        case .create:
+            posixMode = "wb"
+        case .update:
+            posixMode = "rb+"
+        }
+        self.memoryFile = MemoryFile(data: data)
+        guard let archiveFile = memoryFile?.open(mode: posixMode)
+            else {
+                return nil
+        }
+        self.archiveFile = archiveFile
+        if mode == .create {
+            let endOfCentralDirectoryRecord = EndOfCentralDirectoryRecord(numberOfDisk: 0, numberOfDiskStart: 0,
+                                                                          totalNumberOfEntriesOnDisk: 0,
+                                                                          totalNumberOfEntriesInCentralDirectory: 0,
+                                                                          sizeOfCentralDirectory: 0,
+                                                                          offsetToStartOfCentralDirectory: 0,
+                                                                          zipFileCommentLength: 0,
+                                                                          zipFileCommentData: Data())
+            _ = endOfCentralDirectoryRecord.data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
+                fwrite(buffer.baseAddress, buffer.count, 1, archiveFile) // Errors caught on read below
+            }
+        }
         guard let endOfCentralDirectoryRecord = Archive.scanForEndOfCentralDirectoryRecord(in: self.archiveFile)
             else {
                 return nil
@@ -188,55 +214,10 @@ public final class Archive: Sequence {
         self.endOfCentralDirectoryRecord = endOfCentralDirectoryRecord
     }
 
-    @available(macOS 10.13, iOS 11.0, tvOS 11.0, watchOS 4.0, *)
-    public init?(writeData: UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>, length: UnsafeMutablePointer<Int>) {
-        self.url            = URL(string: "memory:")!
-        self.accessMode     = .create
-        self.archiveFile    = open_memstream(writeData, length)
-        let endOfCentralDirectoryRecord = EndOfCentralDirectoryRecord(numberOfDisk: 0, numberOfDiskStart: 0,
-                                                                      totalNumberOfEntriesOnDisk: 0,
-                                                                      totalNumberOfEntriesInCentralDirectory: 0,
-                                                                      sizeOfCentralDirectory: 0,
-                                                                      offsetToStartOfCentralDirectory: 0,
-                                                                      zipFileCommentLength: 0,
-                                                                      zipFileCommentData: Data())
-        guard let _ = try? Data.write(chunk: endOfCentralDirectoryRecord.data, to: self.archiveFile) else
-            { return nil }
-        fseek(self.archiveFile, 0, SEEK_SET)
-
-        self.endOfCentralDirectoryRecord = endOfCentralDirectoryRecord
-    }
+    public var data : Data? { return memoryFile?.data }
 
     deinit {
         fclose(self.archiveFile)
-    }
-
-    @available(macOS 10.13, iOS 11.0, tvOS 11.0, watchOS 4.0, *)
-    static public func extract(data: Data, body: (Archive) -> Void) throws {
-        let length = data.count
-        try data.withUnsafeBytes { (ptr: UnsafePointer<UInt8>) -> Void in
-            if let archive = Archive(readData: ptr, length: length) {
-                body(archive)
-            } else {
-                throw ArchiveError.unreadableArchive
-            }
-        }
-    }
-
-    @available(macOS 10.13, iOS 11.0, tvOS 11.0, watchOS 4.0, *)
-    static public func dataWithArchive(body: (Archive) -> Void) throws -> Data {
-        var bytes   : UnsafeMutablePointer<Int8>?
-        var length  = 0
-        if let archive = Archive(writeData: &bytes, length: &length) {
-            body(archive)
-        } else {
-            throw ArchiveError.unwritableArchive
-        }
-        if bytes != nil {
-            return Data(bytesNoCopy: bytes!, count: length, deallocator: Data.Deallocator.free)
-        } else {
-            throw ArchiveError.unwritableArchive
-        }
     }
 
     public func makeIterator() -> AnyIterator<Entry> {
