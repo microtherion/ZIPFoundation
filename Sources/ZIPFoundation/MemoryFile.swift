@@ -38,21 +38,24 @@ class MemoryFile {
 
     fileprivate func readData(buffer: UnsafeMutableRawBufferPointer) -> Int {
         let sz = min(buffer.count, data.count-offset)
-        data.copyBytes(to: buffer.bindMemory(to: UInt8.self), from: offset..<offset+sz)
+        let start = data.startIndex
+        data.copyBytes(to: buffer.bindMemory(to: UInt8.self), from: start+offset..<start+offset+sz)
         offset += sz
         return sz
     }
 
     fileprivate func writeData(buffer: UnsafeRawBufferPointer) -> Int {
+        let start = data.startIndex
         if offset < data.count && offset+buffer.count > data.count {
-            data.removeSubrange(offset..<data.count)
+            data.removeSubrange(start+offset..<start+data.count)
         } else if offset > data.count {
             data.append(Data(count: offset-data.count))
         }
         if offset == data.count {
             data.append(buffer.bindMemory(to: UInt8.self))
         } else {
-            data.replaceSubrange(offset..<offset+buffer.count, with: buffer.bindMemory(to: UInt8.self))
+            let start = data.startIndex // May have changed in earlier mutation
+            data.replaceSubrange(start+offset..<start+offset+buffer.count, with: buffer.bindMemory(to: UInt8.self))
         }
         offset += buffer.count
         return buffer.count

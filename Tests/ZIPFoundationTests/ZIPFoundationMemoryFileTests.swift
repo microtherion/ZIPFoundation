@@ -29,6 +29,16 @@ extension ZIPFoundationTests {
         XCTAssertEqual(fclose(file), 0)
     }
 
+    func testReadOnlySlicedFile() {
+        let originalData = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".data(using: .utf8)!
+        let slice        = originalData[10..<originalData.count]
+        let file = MemoryFile(data: slice).open(mode: "r")
+        var ch : [UInt8] = [0, 0, 0]
+        XCTAssertEqual(fread(&ch, 1, 2, file), 2)
+        XCTAssertEqual(String(Unicode.Scalar(ch[0])), "A")
+        XCTAssertEqual(String(Unicode.Scalar(ch[1])), "B")
+    }
+
     func testWriteOnlyFile() {
         let mem  = MemoryFile()
         let file = mem.open(mode: "w")
